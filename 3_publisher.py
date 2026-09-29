@@ -16,7 +16,7 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="My_Virtual_ESP
 
 print("[INFO] Connecting to local Mosquitto broker...")
 try:
-    client.connect("localhost", 1883, keepalive=60)
+    client.connect("broker.hivemq.com", 1883, keepalive=60)
 except ConnectionRefusedError:
     print("\n[CRITICAL ERROR] Connection refused! Mosquitto is not running.")
     print("Fix: Start Mosquitto Broker service before publishing.")
@@ -42,7 +42,7 @@ for index, row in df.iterrows():
     json_payload = json.dumps(payload)
 
     # Publish to the topic
-    client.publish("ev/battery/telemetry", json_payload)
+    client.publish("piyush/ev/project/battery1", json_payload)
     print(f"<-- Published row {index + 1}/{len(df)}: {json_payload}")
 
     time.sleep(1)  # 1-second delay between readings
