@@ -26,6 +26,9 @@ def on_message(client, userdata, msg):
 
         current_temp = payload['cell_temp_C']
         current_res = payload['resistance_ohms']
+        # Save the latest payload to a local file for the dashboard
+        with open("latest_telemetry.json", "w") as f:
+            json.dump(payload, f)
 
         # 1. Calculate Rate of Change (Delta)
         temp_delta = 0.0
