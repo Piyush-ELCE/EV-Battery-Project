@@ -6,6 +6,7 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 import joblib
 import numpy as np
 import warnings
+import ssl
 
 # Suppress scikit-learn version warnings for clean terminal output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -75,5 +76,5 @@ def on_message(client, userdata, msg):
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="My_Anomaly_Detector")
 client.on_connect = on_connect
 client.on_message = on_message
-client.connect("broker.hivemq.com", 1883, keepalive=60) 
+client.connect("localhost", 1883, keepalive=60)
 client.loop_forever()

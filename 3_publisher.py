@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import pandas as pd
 import json
 import time
+import ssl
 
 # 1. Load the generated CSV file
 try:
@@ -16,7 +17,7 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="My_Virtual_ESP
 
 print("[INFO] Connecting to local Mosquitto broker...")
 try:
-    client.connect("broker.hivemq.com", 1883, keepalive=60)
+    client.connect("localhost", 1883, keepalive=60)
 except ConnectionRefusedError:
     print("\n[CRITICAL ERROR] Connection refused! Mosquitto is not running.")
     print("Fix: Start Mosquitto Broker service before publishing.")
