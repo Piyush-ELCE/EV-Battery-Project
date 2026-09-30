@@ -1,21 +1,21 @@
 @echo off
-echo Starting EV Battery Intelligence Pipeline...
-echo ===========================================
+echo 🚀 Starting EV Battery Pipeline...
 
-:: 1. Start the Subscriber in a new terminal window
-echo [1/3] Starting MQTT Subscriber & ML Engine...
-start "Subscriber (ML & DB)" cmd /k "python 2_subscriber.py"
+echo [1/4] Starting InfluxDB Server...
+:: Opens a new window and runs InfluxDB
+start "InfluxDB" cmd /k "C:\Program Files\InfluxData\influxdb2_windows_amd64\influxd.exe"
+:: Give the database 3 seconds to fully boot up
+timeout /t 3 /nobreak >nul
 
-:: Wait 2 seconds to give the subscriber time to connect to HiveMQ
-timeout /t 2 /nobreak > nul
+echo [2/4] Starting MQTT Subscriber (ML Engine)...
+start "Subscriber" cmd /k "python 2_subscriber.py"
+timeout /t 2 /nobreak >nul
 
-:: 2. Start the Publisher in a new terminal window
-echo [2/3] Starting Sensor Telemetry Publisher...
-start "Publisher (Edge Device)" cmd /k "python 3_publisher.py"
+echo [3/4] Starting MQTT Publisher (Data Generator)...
+start "Publisher" cmd /k "python 3_publisher.py"
+timeout /t 2 /nobreak >nul
 
-:: Wait 2 seconds before launching the UI
-timeout /t 2 /nobreak > nul
+echo [4/4] Starting Streamlit Dashboard...
+start "Dashboard" cmd /k "streamlit run 4_dashboard.py"
 
-:: 3. Start the Streamlit Dashboard in the current window
-echo [3/3] Launching Streamlit Dashboard...
-streamlit run 4_dashboard.py
+echo ✅ All systems launched!
