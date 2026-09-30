@@ -1,8 +1,6 @@
 import paho.mqtt.client as mqtt
 import json
-import influxdb_client
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client_3 import InfluxDBClient3, Point # Updated for v3
 import joblib
 import numpy as np
 import warnings
@@ -16,20 +14,23 @@ print("Loading ML Model...")
 ml_model = joblib.load("isolation_forest_model.pkl")
 print("✅ Model loaded!")
 
-# --- InfluxDB Setup ---
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "I_75MjVFDIXG_0P7XyeBpxMKTcJbSIDT3n8mcLSxMMSwv0qy0UefDmmNNO98AJFPBAfu-OyoqF_2AjlDe_jDRA==" 
-INFLUX_ORG = "EV_Project"
-INFLUX_BUCKET = "battery_telemetry"
+# --- InfluxDB Cloud v3 Setup ---
+# FIXED URL: Removed the /orgs/... path at the end. It must just be the host.
+INFLUX_URL = "https://us-east-1-1.aws.cloud2.influxdata.com" 
+INFLUX_TOKEN = "DKTio2fVRp9gxTKY7JXiASZdodFQ4oj5WBTDcM9ReH7hEAJ2gBJDne6cbrhGHf-9AhFBNLcNjyFCi7lnfTPCrg==" 
+INFLUX_ORG = "piyushkny2006@gmail.com"
+INFLUX_DATABASE = "battery_telemetry"  # v3 uses "database" instead of "bucket"
 
-db_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-write_api = db_client.write_api(write_options=SYNCHRONOUS)
+# Initialize the v3 Serverless client
+db_client = InfluxDBClient3(host=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, database=INFLUX_DATABASE)
 
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         print("[CONNECTED] Linked to broker.")
         client.subscribe("piyush/ev/project/battery1")
         print("[SUBSCRIBED] Listening for live data...\n")
+    else:
+        print(f"\n❌ [CONNECTION FAILED] Reason Code: {rc}")
 
 def on_message(client, userdata, msg):
     try:
@@ -49,16 +50,18 @@ def on_message(client, userdata, msg):
         # 3. Package and save everything to InfluxDB
         point = (
             Point("battery_status")
-            .field("voltage_V", payload['voltage_V'])
-            .field("current_A", payload['current_A'])
-            .field("cell_temp_C", payload['cell_temp_C'])
-            .field("ambient_temp_C", payload['ambient_temp_C'])
-            .field("soc_percent", payload['soc_percent'])
-            .field("resistance_ohms", payload['resistance_ohms'])
-            .field("capacity_Ah", payload['capacity_Ah'])
-            .field("ml_anomaly", ml_anomaly_detected) # <--- New ML Field!
+            .field("voltage_V", float(payload['voltage_V']))
+            .field("current_A", float(payload['current_A']))
+            .field("cell_temp_C", float(payload['cell_temp_C']))
+            .field("ambient_temp_C", float(payload['ambient_temp_C']))
+            .field("soc_percent", float(payload['soc_percent']))
+            .field("resistance_ohms", float(payload['resistance_ohms']))
+            .field("capacity_Ah", float(payload['capacity_Ah']))
+            .field("ml_anomaly", ml_anomaly_detected) 
         )
-        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+        
+        # v3 Write command (much simpler!)
+        db_client.write(record=point)
 
         # 4. Terminal Output
         output = f"--> Temp: {payload['cell_temp_C']}°C | Res: {payload['resistance_ohms']}Ω"
@@ -76,14 +79,9 @@ def on_message(client, userdata, msg):
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="My_Anomaly_Detector")
 client.on_connect = on_connect
 client.on_message = on_message
+
 # --- HiveMQ Cloud Secure Connection ---
-# 1. Set your username and password
 client.username_pw_set("piyush", "12345678")
-
-# 2. Enable secure TLS/SSL encryption
 client.tls_set(tls_version=ssl.PROTOCOL_TLS)
-
-# 3. Connect to your specific Cluster URL on Port 8883
-# Replace the URL below with your actual Cluster URL!
 client.connect("60b7caa4a2af419a9ac318f17098d27c.s1.eu.hivemq.cloud", 8883, keepalive=60)
 client.loop_forever()

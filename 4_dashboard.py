@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
-from influxdb_client import InfluxDBClient
+from influxdb_client_3 import InfluxDBClient3 # Updated for v3
 
 # --- 1. Page Configuration (Must be first) ---
 st.set_page_config(page_title="EV Battery Command Center", layout="wide", initial_sidebar_state="collapsed")
@@ -15,37 +15,34 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. InfluxDB Setup ---
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "I_75MjVFDIXG_0P7XyeBpxMKTcJbSIDT3n8mcLSxMMSwv0qy0UefDmmNNO98AJFPBAfu-OyoqF_2AjlDe_jDRA=="
-INFLUX_ORG = "EV_Project"
-INFLUX_BUCKET = "battery_telemetry"
+INFLUX_URL = "https://us-east-1-1.aws.cloud2.influxdata.com"
+INFLUX_ORG = "piyushkny2006@gmail.com"
+INFLUX_DATABASE = "battery_telemetry" # v3 uses "database" instead of "bucket"
 
-client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, timeout=10000)
-query_api = client.query_api()
+# Smart Token Loading: Uses Streamlit Secrets in the cloud, falls back to hardcoded token locally
+try:
+    INFLUX_TOKEN = st.secrets["INFLUX_TOKEN"]
+except (FileNotFoundError, KeyError):
+    INFLUX_TOKEN = "DKTio2fVRp9gxTKY7JXiASZdodFQ4oj5WBTDcM9ReH7hEAJ2gBJDne6cbrhGHf-9AhFBNLcNjyFCi7lnfTPCrg==" 
+
+# Initialize v3 Client
+client = InfluxDBClient3(host=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, database=INFLUX_DATABASE)
 
 # Header
 st.title("🔋 EV Battery Command Center")
 placeholder = st.empty()
 
-# Flux Query
-flux_query = f'''
-from(bucket: "{INFLUX_BUCKET}")
-  |> range(start: -2m)
-  |> filter(fn: (r) => r["_measurement"] == "battery_status")
-  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-'''
+# --- v3 SQL Query ---
+sql_query = "SELECT * FROM battery_status WHERE time >= now() - INTERVAL '2 minutes'"
 
 while True:
     try:
-        df = query_api.query_data_frame(flux_query)
-
-        if isinstance(df, list) and len(df) > 0:
-            df = df[0]
-        elif isinstance(df, list):
-            df = pd.DataFrame()
+        # Query InfluxDB v3 natively into a Pandas DataFrame
+        df = client.query(query=sql_query, mode="pandas")
 
         if not df.empty:
-            df = df.sort_values(by="_time")
+            # v3 uses 'time' instead of '_time'
+            df = df.sort_values(by="time")
             
             # Get current and previous rows for live 'delta' arrows
             latest = df.iloc[-1]
@@ -91,7 +88,7 @@ while True:
                 st.divider()
 
                 # --- COMPACT LIVE CHARTS ---
-                chart_df = df.set_index("_time")
+                chart_df = df.set_index("time") # Updated to 'time'
                 g1, g2, g3 = st.columns(3)
                 
                 with g1:
