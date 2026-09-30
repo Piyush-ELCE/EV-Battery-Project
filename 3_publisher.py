@@ -17,7 +17,16 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="My_Virtual_ESP
 
 print("[INFO] Connecting to local Mosquitto broker...")
 try:
-    client.connect("localhost", 1883, keepalive=60)
+    # --- HiveMQ Cloud Secure Connection ---
+    # 1. Set your username and password
+    client.username_pw_set("piyush", "12345678")
+
+    # 2. Enable secure TLS/SSL encryption
+    client.tls_set(tls_version=ssl.PROTOCOL_TLS)
+
+    # 3. Connect to your specific Cluster URL on Port 8883
+    # Replace the URL below with your actual Cluster URL!
+    client.connect("60b7caa4a2af419a9ac318f17098d27c.s1.eu.hivemq.cloud", 8883, keepalive=60)
 except ConnectionRefusedError:
     print("\n[CRITICAL ERROR] Connection refused! Mosquitto is not running.")
     print("Fix: Start Mosquitto Broker service before publishing.")
