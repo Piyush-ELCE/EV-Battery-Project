@@ -5,7 +5,7 @@ from influxdb_client import InfluxDBClient
 
 # --- InfluxDB Setup ---
 INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "wew-5BgRvuNNB0EeQjW9d-2OFoxdXULPbqwnQKkpk6mvQiYAwm2MrbtqQKBHSSedy1Lm9nto1Y0AUWOkR9aLVg=="  # <--- Update this!
+INFLUX_TOKEN = "I_75MjVFDIXG_0P7XyeBpxMKTcJbSIDT3n8mcLSxMMSwv0qy0UefDmmNNO98AJFPBAfu-OyoqF_2AjlDe_jDRA=="
 INFLUX_ORG = "EV_Project"
 INFLUX_BUCKET = "battery_telemetry"
 
