@@ -3,23 +3,31 @@ import pandas as pd
 import time
 from influxdb_client import InfluxDBClient
 
-# --- InfluxDB Setup ---
+# --- 1. Page Configuration (Must be first) ---
+st.set_page_config(page_title="EV Battery Command Center", layout="wide", initial_sidebar_state="collapsed")
+
+# Inject Custom CSS to remove top whitespace so scrolling isn't needed
+st.markdown("""
+    <style>
+    .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+    h1 { margin-bottom: 0rem; padding-bottom: 0rem; }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 2. InfluxDB Setup ---
 INFLUX_URL = "http://localhost:8086"
 INFLUX_TOKEN = "I_75MjVFDIXG_0P7XyeBpxMKTcJbSIDT3n8mcLSxMMSwv0qy0UefDmmNNO98AJFPBAfu-OyoqF_2AjlDe_jDRA=="
 INFLUX_ORG = "EV_Project"
 INFLUX_BUCKET = "battery_telemetry"
 
-# Connect to the database
 client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, timeout=10000)
 query_api = client.query_api()
 
-st.set_page_config(page_title="EV Battery Dashboard", layout="wide")
-st.title("🔋 EV Battery Live Telemetry")
-st.markdown("Real-time monitoring pulling directly from **InfluxDB**.")
-
+# Header
+st.title("🔋 EV Battery Command Center")
 placeholder = st.empty()
 
-# Flux query: "Go to the bucket, grab the last 2 minutes of data, and format it into a table"
+# Flux Query
 flux_query = f'''
 from(bucket: "{INFLUX_BUCKET}")
   |> range(start: -2m)
@@ -29,64 +37,89 @@ from(bucket: "{INFLUX_BUCKET}")
 
 while True:
     try:
-        # Fetch data from InfluxDB as a Pandas DataFrame
         df = query_api.query_data_frame(flux_query)
 
-        # InfluxDB sometimes returns a list of DataFrames; we just want the first one
-        if type(df) is list and len(df) > 0:
+        if isinstance(df, list) and len(df) > 0:
             df = df[0]
-        elif type(df) is list:
+        elif isinstance(df, list):
             df = pd.DataFrame()
 
         if not df.empty:
-            # Sort chronologically
             df = df.sort_values(by="_time")
             
-            # Get the absolute latest row for the top metric numbers
+            # Get current and previous rows for live 'delta' arrows
             latest = df.iloc[-1]
+            previous = df.iloc[-2] if len(df) > 1 else latest
 
             with placeholder.container():
-                # Top row metrics
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Temperature", f"{latest['cell_temp_C']:.2f} °C")
-                col2.metric("Voltage", f"{latest['voltage_V']:.3f} V")
-                col3.metric("Current", f"{latest['current_A']:.2f} A")
-                col4.metric("SOC", f"{latest['soc_percent']:.1f} %")
+                # --- AI ALERT BANNER ---
+                is_ml_anomaly = bool(latest.get("ml_anomaly", False))
+                if is_ml_anomaly:
+                    st.error("🚨 **AI ANOMALY DETECTED:** Multi-variable behavioral mismatch in Isolation Forest model.")
+                else:
+                    st.success("✅ **SYSTEM NORMAL:** AI confirms parameters are operating securely.")
 
-                st.divider()
-
-                # Live Scrolling Charts using the _time column for the X-axis
-                st.subheader("Live Trends (Last 2 Minutes)")
-                chart_df = df.set_index("_time")
+                # --- THE HUD (Heads Up Display) 7-COLUMN ROW ---
+                c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
                 
-                chart_col1, chart_col2 = st.columns(2)
-                with chart_col1:
-                    st.markdown("**Cell Temperature (°C)**")
-                    st.line_chart(chart_df["cell_temp_C"])
-                with chart_col2:
-                    st.markdown("**Current Draw (A)**")
-                    st.line_chart(chart_df["current_A"])
+                # Metric 1: Temp (Inverted delta color so hotter = red)
+                temp_diff = latest['cell_temp_C'] - previous['cell_temp_C']
+                c1.metric("Cell Temp", f"{latest['cell_temp_C']:.1f} °C", f"{temp_diff:.2f} °C", delta_color="inverse")
+                
+                # Metric 2: Voltage
+                volt_diff = latest['voltage_V'] - previous['voltage_V']
+                c2.metric("Voltage", f"{latest['voltage_V']:.2f} V", f"{volt_diff:.2f} V")
+                
+                # Metric 3: Current
+                curr_diff = latest['current_A'] - previous['current_A']
+                c3.metric("Current", f"{latest['current_A']:.1f} A", f"{curr_diff:.1f} A", delta_color="off")
+                
+                # Metric 4: State of Charge
+                soc_diff = latest['soc_percent'] - previous['soc_percent']
+                c4.metric("Charge (SOC)", f"{latest['soc_percent']:.1f} %", f"{soc_diff:.2f} %")
+                
+                # Metric 5: Resistance
+                res_diff = latest['resistance_ohms'] - previous['resistance_ohms']
+                c5.metric("Resistance", f"{latest['resistance_ohms']:.4f} Ω", f"{res_diff:.4f} Ω", delta_color="inverse")
+                
+                # Metric 6: Capacity
+                c6.metric("Capacity", f"{latest['capacity_Ah']:.1f} Ah")
+                
+                # Metric 7: Ambient Temp
+                c7.metric("Ambient Temp", f"{latest['ambient_temp_C']:.1f} °C")
 
                 st.divider()
 
-                # Bottom row metrics
-                col5, col6, col7 = st.columns(3)
-                col5.metric("Internal Resistance", f"{latest['resistance_ohms']:.4f} Ω")
-                col6.metric("Capacity", f"{latest['capacity_Ah']:.1f} Ah")
-                col7.metric("Ambient Temp", f"{latest['ambient_temp_C']:.2f} °C")
+                # --- COMPACT LIVE CHARTS ---
+                chart_df = df.set_index("_time")
+                g1, g2, g3 = st.columns(3)
+                
+                with g1:
+                    st.caption("📈 Thermal Trend (°C)")
+                    # height=200 keeps the charts short and prevents scrolling
+                    st.line_chart(chart_df["cell_temp_C"], height=200)
+                
+                with g2:
+                    st.caption("⚡ Power Draw (Amps)")
+                    st.line_chart(chart_df["current_A"], height=200)
+                    
+                with g3:
+                    st.caption("🤖 AI Anomaly Triggers")
+                    if "ml_anomaly" in chart_df.columns:
+                        st.area_chart(chart_df["ml_anomaly"].astype(int), height=200)
 
-                # Alerts
+                # --- EMERGENCY HARD ALERTS ---
                 if latest['cell_temp_C'] > 35.0:
-                    st.error("🔥 THERMAL ANOMALY DETECTED: Cell temperature exceeds safe limits!")
+                    st.warning("🔥 **CRITICAL LIMIT:** Cell temperature breached 35°C threshold!")
                 if latest['resistance_ohms'] > 0.025:
-                    st.warning("⚠️ DEGRADATION WARNING: Internal resistance spiking.")
+                    st.warning("⚠️ **HARDWARE WARNING:** High internal resistance detected.")
+
         else:
             with placeholder.container():
-                st.info("No data found in the last 2 minutes. Start 3_publisher.py to send data.")
+                st.info("Awaiting telemetry stream... Please start `3_publisher.py`.")
 
     except Exception as e:
         with placeholder.container():
-            st.error(f"Error querying InfluxDB: {e}")
-    
-    # Pause for 2 seconds to avoid spamming the database
-    time.sleep(2)
+            st.error(f"Database connection error: {e}")
+
+    time.sleep(1.5)
