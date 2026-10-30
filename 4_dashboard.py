@@ -79,12 +79,12 @@ if not INFLUX_TOKEN:
     st.stop()
 
 # Initialize Client with DNS fallback
+# Initialize Client (Cloud-Native Configuration)
 client = InfluxDBClient3(
     host=INFLUX_URL, 
     token=INFLUX_TOKEN, 
     org=INFLUX_ORG, 
-    database=INFLUX_DATABASE,
-    flight_client_options={"tls_roots": None}
+    database=INFLUX_DATABASE
 )
 
 st.title("🔋 EV Battery Command Center")
