@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import datetime
 from influxdb_client_3 import InfluxDBClient3
 
 # --- 1. Page Configuration (Must be first) ---
@@ -75,13 +76,13 @@ client = InfluxDBClient3(host=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, da
 
 st.title("🔋 EV Battery Command Center")
 
-sql_query = "SELECT * FROM battery_status WHERE time >= now() - INTERVAL '2 minutes'"
+# NEW QUERY: Grab the last 120 rows ever recorded, regardless of when they happened
+sql_query = "SELECT * FROM battery_status ORDER BY time DESC LIMIT 120"
 
 # --- 5. Live Telemetry (Optimized to stop flickering) ---
 @st.fragment(run_every=4) 
 def live_telemetry():
     
-    # Acts as a rigid box so the page doesn't collapse during updates
     ui_scaffold = st.container(height=700, border=False) 
     
     with ui_scaffold:
@@ -89,17 +90,29 @@ def live_telemetry():
             df = client.query(query=sql_query, mode="pandas")
 
             if not df.empty:
+                # Sort left-to-right for the charts
                 df = df.sort_values(by="time")
                 
                 latest = df.iloc[-1]
                 previous = df.iloc[-2] if len(df) > 1 else latest
 
+                # --- OFFLINE / ONLINE STATUS CHECK ---
+                now_utc = pd.Timestamp.utcnow()
+                latest_time = pd.to_datetime(latest['time'])
+                if latest_time.tzinfo is None:
+                     latest_time = latest_time.tz_localize('UTC')
+                
+                time_diff = (now_utc - latest_time).total_seconds()
+
+                if time_diff > 20:
+                    st.warning(f"🟡 **SENSORS OFFLINE:** Live feed disconnected. Viewing last known historical telemetry from {latest_time.strftime('%b %d, %H:%M:%S')} UTC.")
+                else:
+                    st.success("🟢 **LIVE SENSORS ACTIVE:** Receiving real-time MQTT telemetry.")
+
                 # --- AI ALERT BANNER ---
                 is_ml_anomaly = bool(latest.get("ml_anomaly", False))
                 if is_ml_anomaly:
                     st.error("🚨 **AI ANOMALY DETECTED:** Multi-variable behavioral mismatch in Isolation Forest model.")
-                else:
-                    st.success("✅ **SYSTEM NORMAL:** AI confirms parameters are operating securely.")
 
                 # --- THE HUD ---
                 c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
@@ -142,8 +155,8 @@ def live_telemetry():
                         st.area_chart(chart_df["ml_anomaly"].astype(int), height=200)
 
                 # --- EMERGENCY HARD ALERTS ---
-                if latest['cell_temp_C'] > 35.0:
-                    st.warning("🔥 **CRITICAL LIMIT:** Cell temperature breached 35°C threshold!")
+                if latest['cell_temp_C'] > 45.0:
+                    st.warning("🔥 **CRITICAL LIMIT:** Cell temperature breached 45°C threshold!")
                 if latest['resistance_ohms'] > 0.025:
                     st.warning("⚠️ **HARDWARE WARNING:** High internal resistance detected.")
 
