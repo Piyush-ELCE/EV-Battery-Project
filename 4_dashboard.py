@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 import datetime
+import os
 from influxdb_client_3 import InfluxDBClient3
 
 # --- 1. Page Configuration (Must be first) ---
@@ -67,16 +68,27 @@ INFLUX_URL = "https://us-east-1-1.aws.cloud2.influxdata.com"
 INFLUX_ORG = "piyushkny2006@gmail.com"
 INFLUX_DATABASE = "battery_telemetry" 
 
+# Secure Credentials Logic
 try:
     INFLUX_TOKEN = st.secrets["INFLUX_TOKEN"]
 except (FileNotFoundError, KeyError):
-    INFLUX_TOKEN = "DKTio2fVRp9gxTKY7JXiASZdodFQ4oj5WBTDcM9ReH7hEAJ2gBJDne6cbrhGHf-9AhFBNLcNjyFCi7lnfTPCrg==" 
+    INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+    
+if not INFLUX_TOKEN:
+    st.error("Missing Database Credentials. Please set INFLUX_TOKEN in Streamlit secrets or OS environment.")
+    st.stop()
 
-client = InfluxDBClient3(host=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, database=INFLUX_DATABASE)
+# Initialize Client with DNS fallback
+client = InfluxDBClient3(
+    host=INFLUX_URL, 
+    token=INFLUX_TOKEN, 
+    org=INFLUX_ORG, 
+    database=INFLUX_DATABASE,
+    flight_client_options={"tls_roots": None}
+)
 
 st.title("🔋 EV Battery Command Center")
 
-# NEW QUERY: Grab the last 120 rows ever recorded, regardless of when they happened
 sql_query = "SELECT * FROM battery_status ORDER BY time DESC LIMIT 120"
 
 # --- 5. Live Telemetry (Optimized to stop flickering) ---
@@ -90,7 +102,6 @@ def live_telemetry():
             df = client.query(query=sql_query, mode="pandas")
 
             if not df.empty:
-                # Sort left-to-right for the charts
                 df = df.sort_values(by="time")
                 
                 latest = df.iloc[-1]

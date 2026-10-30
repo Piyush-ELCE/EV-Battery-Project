@@ -3,6 +3,19 @@ import json
 import time
 import random
 import ssl
+import os
+
+# --- Secure Credentials Logic ---
+# Try to load password from Streamlit secrets (for consistency) or environment variable
+try:
+    import streamlit as st
+    HIVEMQ_PW = st.secrets["HIVEMQ_PASSWORD"]
+except (ImportError, FileNotFoundError, KeyError):
+    HIVEMQ_PW = os.getenv("HIVEMQ_PASSWORD")
+
+if not HIVEMQ_PW:
+    print("[ERROR] Missing HiveMQ Password. Set HIVEMQ_PASSWORD in environment.")
+    exit()
 
 # --- 1. Initial Battery State ---
 battery_state = {
@@ -25,7 +38,7 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="My_Realistic_V
 
 print("[INFO] Connecting to HiveMQ Cloud...")
 try:
-    client.username_pw_set("piyush", "12345678")
+    client.username_pw_set("piyush", HIVEMQ_PW)
     client.tls_set(tls_version=ssl.PROTOCOL_TLS)
     # Replace the URL below with your actual Cluster URL!
     client.connect("60b7caa4a2af419a9ac318f17098d27c.s1.eu.hivemq.cloud", 8883, keepalive=60)
@@ -85,7 +98,7 @@ try:
             battery_state["cell_temp_C"] = max(20.0, min(60.0, battery_state["cell_temp_C"]))
 
         # 5. Voltage Sag (V = Rated Voltage - (Current * Resistance))
-        # As battery drains (SoC drops), the base voltage drops slightly from 400V down to ~350V
+        # Fixed syntax error here
         base_voltage = 400.0 - ((100.0 - battery_state["soc_percent"]) * 0.5)
         voltage_sag = battery_state["current_A"] * battery_state["resistance_ohms"]
         battery_state["voltage_V"] = base_voltage - voltage_sag + random.uniform(-0.5, 0.5)

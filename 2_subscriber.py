@@ -5,9 +5,23 @@ import joblib
 import numpy as np
 import warnings
 import ssl
+import os
 
 # Suppress scikit-learn version warnings for clean terminal output
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# --- Secure Credentials Logic ---
+try:
+    import streamlit as st
+    INFLUX_TOKEN = st.secrets["INFLUX_TOKEN"]
+    HIVEMQ_PW = st.secrets["HIVEMQ_PASSWORD"]
+except (ImportError, FileNotFoundError, KeyError):
+    INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+    HIVEMQ_PW = os.getenv("HIVEMQ_PASSWORD")
+
+if not INFLUX_TOKEN or not HIVEMQ_PW:
+    print("[ERROR] Missing Credentials. Set INFLUX_TOKEN and HIVEMQ_PASSWORD.")
+    exit()
 
 # --- Load the ML Model ---
 print("Loading ML Model...")
@@ -15,9 +29,7 @@ ml_model = joblib.load("isolation_forest_model.pkl")
 print("✅ Model loaded!")
 
 # --- InfluxDB Cloud v3 Setup ---
-# FIXED URL: Removed the /orgs/... path at the end. It must just be the host.
 INFLUX_URL = "https://us-east-1-1.aws.cloud2.influxdata.com" 
-INFLUX_TOKEN = "DKTio2fVRp9gxTKY7JXiASZdodFQ4oj5WBTDcM9ReH7hEAJ2gBJDne6cbrhGHf-9AhFBNLcNjyFCi7lnfTPCrg==" 
 INFLUX_ORG = "piyushkny2006@gmail.com"
 INFLUX_DATABASE = "battery_telemetry"  # v3 uses "database" instead of "bucket"
 
@@ -81,7 +93,7 @@ client.on_connect = on_connect
 client.on_message = on_message
 
 # --- HiveMQ Cloud Secure Connection ---
-client.username_pw_set("piyush", "12345678")
+client.username_pw_set("piyush", HIVEMQ_PW)
 client.tls_set(tls_version=ssl.PROTOCOL_TLS)
 client.connect("60b7caa4a2af419a9ac318f17098d27c.s1.eu.hivemq.cloud", 8883, keepalive=60)
 client.loop_forever()
