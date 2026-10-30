@@ -2,6 +2,10 @@
 
 A real-time, end-to-end IoT monitoring pipeline for Electric Vehicle (EV) battery packs. This system continuously simulates realistic multi-parameter battery telemetry, streams data securely across cloud brokers via MQTT, executes real-time AI anomaly detection using an Isolation Forest model, records time-series measurements in InfluxDB Cloud (v3), and visualizes health metrics on a live Streamlit Command Center.
 
+## 🔗 Live Dashboard
+**[Insert your Streamlit Cloud URL here]**
+*Note: The dashboard features a session gatekeeper. You may enter any name and any valid-format email address (e.g., `guest@example.com`) to view the portfolio.*
+
 ---
 
 ## 📌 Architecture Overview
@@ -14,7 +18,7 @@ A real-time, end-to-end IoT monitoring pipeline for Electric Vehicle (EV) batter
                 │  MQTT over TLS (Port 8883)
                 ▼
 ┌───────────────────────────────┐
-│        HiveMQ Cloud           │ (Fully Managed MQTT Broker)
+│         HiveMQ Cloud          │ (Fully Managed MQTT Broker)
 └───────────────┬───────────────┘
                 │  Topic: piyush/ev/project/battery1
                 ▼
@@ -27,9 +31,32 @@ A real-time, end-to-end IoT monitoring pipeline for Electric Vehicle (EV) batter
 ┌───────────────────────────────┐
 │     InfluxDB Cloud (v3)       │ (Serverless Time-Series Database)
 └───────────────┬───────────────┘
-                │  SQL Queries (Last 2 minutes)
+                │  SQL Queries (Last 120 points & Offline Check)
                 ▼
 ┌───────────────────────────────┐
 │       4_dashboard.py          │ (Streamlit Community Cloud)
 │   (Live Command Center UI)    │
 └───────────────────────────────┘
+
+🚀 Key Engineering Features
+Edge Physics Simulation (Digital Twin): Instead of static random numbers, the publisher acts as a Hardware-in-the-Loop (HIL) simulator, dynamically modeling temperature drift, capacity fade, current draw, and resistance curves under load.
+
+Real-Time ML Anomaly Detection: An Isolation Forest machine learning model intercepts the MQTT stream in real-time, instantly detecting multi-variable behavioral mismatches (e.g., normal temperature but abnormal internal resistance) before they trigger static hard-coded thresholds.
+
+Asynchronous UI Rendering (@st.fragment): The Command Center utilizes Streamlit's fragment rendering to poll the database every 4 seconds in the background. This provides a flicker-free, native-app experience without reloading the entire web page.
+
+Graceful Degradation & Edge Resilience: The system is engineered to handle network drops. If the physical sensors go offline, the UI does not crash. It gracefully freezes the telemetry charts, calculates the exact time of disconnection, and displays an "Offline Safe Mode" banner for the fleet manager.
+
+Cloud-Native & Secure: Utilizes Serverless InfluxDB v3 for high-speed time-series ingestion via FlightSQL/gRPC, secured behind Streamlit Cloud Secrets management and a frontend session validation gatekeeper.
+
+🛠️ Tech Stack
+IoT & Messaging: Eclipse Paho MQTT, HiveMQ Cloud (TLS 1.2)
+
+Machine Learning: Scikit-Learn (Isolation Forest), Pandas, Joblib
+
+Database: InfluxDB Cloud v3 (SQL-based time-series data)
+
+Frontend UI: Streamlit (Python)
+
+Environment: VS Code, GitHub Integration
+
